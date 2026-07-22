@@ -1,4 +1,4 @@
-// src/pages/Home.jsx — FINAL FIXED VERSION with Image Fallback
+// src/pages/Home.jsx — FIXED: responsive hero height + premium slider transition
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
@@ -39,30 +39,55 @@ function CountUp({ end, duration = 2 }) {
 // Hero Slide data with fallbacks
 const HERO_SLIDES = [
   {
-    image: '/images/hero-banner-1.webp',
-    fallback: 'https://placehold.co/1200x600/1C1B19/B8935A?text=Batqui+Traders',
-    headline: 'Elevate Every Device',
-    subheadline: 'Premium mobile accessories designed for those who appreciate quality craftsmanship and timeless design.',
-    cta: 'Explore Collection'
-  },
-  {
     image: '/images/category-lifestyle.webp',
     fallback: 'https://placehold.co/1200x600/2F4A3E/FAF8F4?text=New+Season+Drops',
     headline: 'New Season Drops',
     subheadline: 'Discover our latest collection of cases, chargers, and audio gear — fresh arrivals every month.',
     cta: 'Shop New In'
+   
   },
+
   {
     image: '/images/featured-spotlight.webp',  // ← yehi image tum chahte the
     fallback: 'https://placehold.co/1200x600/B8935A/1C1B19?text=Power+That+Lasts',
     headline: 'Power That Lasts',
     subheadline: 'From 20000mAh power banks to 65W fast chargers — stay charged wherever you go.',
     cta: 'Shop Power'
-  }
+  },
+{
+    image: '/images/hero-banner-1.webp',    
+    fallback: 'https://placehold.co/1200x600/1C1B19/B8935A?text=Batqui+Traders',
+    headline: 'Elevate Every Device',
+    subheadline: 'Premium mobile accessories designed for those who appreciate quality craftsmanship and timeless design.',
+    cta: 'Explore Collection'
+}
 ];
+
+// Timing for autoplay + progress bar + Ken Burns zoom (keep these in sync)
+const SLIDE_DURATION = 4500;
+
+const slideVariants = {
+  enter: (dir) => ({
+    opacity: 0,
+    x: dir > 0 ? 50 : -50,
+    scale: 1.03
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+    scale: 1
+  },
+  exit: (dir) => ({
+    opacity: 0,
+    x: dir > 0 ? -50 : 50,
+    scale: 0.98
+  })
+};
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const [progressKey, setProgressKey] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -78,14 +103,32 @@ export default function Home() {
     });
   }, []);
 
+  const nextSlide = useCallback(() => {
+    setDirection(1);
+    setCurrentSlide(prev => (prev + 1) % HERO_SLIDES.length);
+    setProgressKey(k => k + 1);
+  }, []);
+
+  const prevSlide = useCallback(() => {
+    setDirection(-1);
+    setCurrentSlide(prev => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+    setProgressKey(k => k + 1);
+  }, []);
+
+  const goToSlide = useCallback((index) => {
+    setDirection(index > currentSlide ? 1 : -1);
+    setCurrentSlide(index);
+    setProgressKey(k => k + 1);
+  }, [currentSlide]);
+
   // Auto-play
   useEffect(() => {
     if (isPaused) return;
     const timer = setInterval(() => {
-      setCurrentSlide(prev => (prev + 1) % HERO_SLIDES.length);
-    }, 4000);
+      nextSlide();
+    }, SLIDE_DURATION);
     return () => clearInterval(timer);
-  }, [isPaused]);
+  }, [isPaused, nextSlide]);
 
   const bestSellers = products.filter(p => p.reviews > 300);
   const newArrivals = products.filter(p => p.badge === 'New' || p.badge === 'Hot');
@@ -98,28 +141,30 @@ export default function Home() {
 
   return (
     <div>
-      {/* ========== HERO CAROUSEL — HEIGHT PERFECT, IMAGES WITH FALLBACK ========== */}
+      {/* ========== HERO CAROUSEL — responsive aspect-ratio (no more cropped/short image on desktop, no overflow on mobile) ========== */}
       <section
-        className="relative w-full overflow-hidden bg-gray-100"
+        className="relative w-full overflow-hidden bg-gray-100 aspect-[4/5] sm:aspect-[16/10] md:aspect-[16/9] lg:aspect-[21/9]"
         style={{
-          height: 'clamp(400px, 55vh, 700px)',
-          minHeight: '400px'
+          maxHeight: '700px',
+          minHeight: '360px'
         }}
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
         onTouchStart={() => setIsPaused(true)}
         onTouchEnd={() => setIsPaused(false)}
       >
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={currentSlide}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.7 }}
-            className="absolute inset-0"
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.75, ease: [0.4, 0, 0.2, 1] }}
+            className="absolute inset-0 overflow-hidden"
           >
-            <img
+            <motion.img
               src={slideImages[currentSlide]}
               alt={HERO_SLIDES[currentSlide].headline}
               className="w-full h-full object-cover"
@@ -127,6 +172,9 @@ export default function Home() {
               fetchpriority={currentSlide === 0 ? "high" : "auto"}
               style={{ objectPosition: 'center center' }}
               onError={() => handleImageError(currentSlide)}
+              initial={{ scale: 1.08 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: SLIDE_DURATION / 1000 + 0.75, ease: 'linear' }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
           </motion.div>
@@ -139,7 +187,7 @@ export default function Home() {
               key={`text-${currentSlide}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              transition={{ duration: 0.5, delay: 0.25 }}
               className="max-w-lg"
             >
               <h1 className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 leading-tight font-heading">
@@ -159,32 +207,42 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Slide Indicators */}
+        {/* Slide Indicators with autoplay progress fill */}
         <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-10">
           {HERO_SLIDES.map((_, i) => (
             <button
               key={i}
-              onClick={() => setCurrentSlide(i)}
-              className={`transition-all duration-300 rounded-full ${
+              onClick={() => goToSlide(i)}
+              className={`relative overflow-hidden transition-all duration-300 rounded-full ${
                 i === currentSlide
-                  ? 'w-5 h-1.5 sm:w-6 sm:h-2 bg-white'
+                  ? 'w-7 h-1.5 sm:w-9 sm:h-2 bg-white/30'
                   : 'w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white/50 hover:bg-white/70'
               }`}
               aria-label={`Go to slide ${i + 1}`}
-            />
+            >
+              {i === currentSlide && (
+                <motion.span
+                  key={progressKey}
+                  className="absolute inset-y-0 left-0 bg-white rounded-full"
+                  initial={{ width: '0%' }}
+                  animate={{ width: isPaused ? '0%' : '100%' }}
+                  transition={{ duration: SLIDE_DURATION / 1000, ease: 'linear' }}
+                />
+              )}
+            </button>
           ))}
         </div>
 
         {/* Arrow Buttons — tablet+ */}
         <button
-          onClick={() => setCurrentSlide(prev => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length)}
+          onClick={prevSlide}
           className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full items-center justify-center text-white hover:bg-white/30 transition-colors hidden md:flex"
           aria-label="Previous slide"
         >
           <span className="material-symbols-outlined text-xl">chevron_left</span>
         </button>
         <button
-          onClick={() => setCurrentSlide(prev => (prev + 1) % HERO_SLIDES.length)}
+          onClick={nextSlide}
           className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full items-center justify-center text-white hover:bg-white/30 transition-colors hidden md:flex"
           aria-label="Next slide"
         >
